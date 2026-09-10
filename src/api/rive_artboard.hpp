@@ -80,7 +80,10 @@ class RiveArtboard : public Resource {
         if (exists())
             for (int i = 0; i < artboard->stateMachineCount(); i++) {
                 auto scene = get_scene(i);
-                if (scene.is_null() || !scene->exists()) throw RiveException("Failed to instantiate scene.");
+                if (scene.is_null() || !scene->exists()) {
+                    RiveException("Failed to instantiate scene.").report();
+                    return;
+                }
             }
     }
 
@@ -88,12 +91,15 @@ class RiveArtboard : public Resource {
         if (exists())
             for (int i = 0; i < artboard->animationCount(); i++) {
                 auto animation = get_animation(i);
-                if (animation.is_null() || !animation->exists())
-                    throw RiveException("Failed to instantiate animation.");
+                if (animation.is_null() || !animation->exists()) {
+                    RiveException("Failed to instantiate animation.").report();
+                    return;
+                }
             }
     }
 
-    String _get_scene_property_hint() const {
+    String _get_scene_property_hint() {
+        _instantiate_scenes();
         PackedStringArray hints;
         hints.append("None:-1");
         scenes.for_each([&hints](Ref<RiveScene> scene, int index) {
@@ -102,7 +108,8 @@ class RiveArtboard : public Resource {
         return String(",").join(hints);
     }
 
-    String _get_animation_property_hint() const {
+    String _get_animation_property_hint() {
+        _instantiate_animations();
         PackedStringArray hints;
         hints.append("None:-1");
         animations.for_each([&hints](Ref<RiveAnimation> animation, int index) {
@@ -139,28 +146,32 @@ class RiveArtboard : public Resource {
     }
 
     int get_scene_count() const {
-        return scenes.get_size();
+        return artboard ? (int)artboard->stateMachineCount() : 0;
     }
 
     int get_animation_count() const {
-        return animations.get_size();
+        return artboard ? (int)artboard->animationCount() : 0;
     }
 
-    TypedArray<RiveScene> get_scenes() const {
+    TypedArray<RiveScene> get_scenes() {
+        _instantiate_scenes();
         return scenes.get_list();
     }
 
-    TypedArray<RiveAnimation> get_animations() const {
+    TypedArray<RiveAnimation> get_animations() {
+        _instantiate_animations();
         return animations.get_list();
     }
 
-    PackedStringArray get_scene_names() const {
+    PackedStringArray get_scene_names() {
+        _instantiate_scenes();
         PackedStringArray names;
         scenes.for_each([&names](Ref<RiveScene> scene, int _) { names.append(scene->get_name()); });
         return names;
     }
 
-    PackedStringArray get_animation_names() const {
+    PackedStringArray get_animation_names() {
+        _instantiate_animations();
         PackedStringArray names;
         animations.for_each([&names](Ref<RiveAnimation> animation, int _) { names.append(animation->get_name()); });
         return names;
@@ -188,7 +199,8 @@ class RiveArtboard : public Resource {
         return scenes.get(index);
     }
 
-    Ref<RiveScene> find_scene(String name) const {
+    Ref<RiveScene> find_scene(String name) {
+        _instantiate_scenes();
         return scenes.find([name](Ref<RiveScene> scene, int i) { return scene->get_name() == name; });
     }
 
@@ -200,7 +212,8 @@ class RiveArtboard : public Resource {
         return animations.get(index);
     }
 
-    Ref<RiveAnimation> find_animation(String name) const {
+    Ref<RiveAnimation> find_animation(String name) {
+        _instantiate_animations();
         return animations.find([name](Ref<RiveAnimation> animation, int i) { return animation->get_name() == name; });
     }
 

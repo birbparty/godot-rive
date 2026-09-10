@@ -11,8 +11,8 @@
 This extensions adds [Rive](https://rive.app) support to Godot 4.
 
 It makes use of the following third-party libraries:
-- [`rive-cpp`](https://github.com/rive-app/rive-cpp)
-- [`skia`](https://github.com/google/skia) (included in `rive-cpp`)
+- [`rive-runtime`](https://github.com/rive-app/rive-runtime) at `runtime-v0.1.384`
+- [`rive-app/skia`](https://github.com/rive-app/skia) at `bae2881` (fetched by the build script)
 
 ## Table of Contents
 
@@ -33,31 +33,43 @@ It makes use of the following third-party libraries:
 
 ## Building
 
-> [!IMPORTANT]
-> These instructions are only tested on M1 MacOS. You may have to modify `build/build.py` or `build/SConstruct` for your system.
-
 The following must be installed:
 - Python 3
 - [git](https://git-scm.com/)
-- [scons](https://scons.org/)
-- [ninja](https://ninja-build.org/)
+- [SCons](https://scons.org/)
+- [Ninja](https://ninja-build.org/)
+- Clang 15 or newer (Xcode Command Line Tools on macOS)
 
-To build, run the following commands (from the root directory):
+Build from the repository root. The first run clones Skia and its dependencies and bootstraps Premake, so it is a large download.
+The build also applies the checked-in compatibility patches under `build/patches/` without changing either submodule pin.
+
 ```bash
-cd build
-python build.py
+python3 build/build.py --platform=linux --target=debug
+python3 build/build.py --platform=linux --target=release
+
+# On an Apple Silicon Mac:
+python3 build/build.py --platform=macos --arch=arm64 --target=debug
+python3 build/build.py --platform=macos --arch=arm64 --target=release
 ```
 
 To see the available options, run:
 ```bash
-python build.py --help
+python3 build/build.py --help
+```
+
+### Verifying
+
+After building, import the extension and run the headless smoke test:
+
+```bash
+godot --headless --path demo --import
+godot --headless --fixed-fps 60 --path demo --script smoke_test.gd 2>&1 | tee /tmp/rive-smoke.log
+test ${PIPESTATUS[0]} -eq 0 && ! grep -E "ERROR:|SCRIPT ERROR:|\[Rive\] .*(Failed|Unable)" /tmp/rive-smoke.log
 ```
 
 ## Installation
 
-> [!IMPORTANT]
-> If you are not on M1 MacOS, you will need to build the extension yourself. Binaries are only provided for MacOS universal (debug and release).
-> Eventually, binaries will be provided for other platforms.
+Linux binaries must currently be built locally. The committed macOS frameworks are legacy universal binaries built against the previous runtime pin; rebuild them as arm64 before shipping this update.
 
 1. Copy `demo/bin/`, `demo/icons/`, and `demo/rive.gdextension` to your project folder
 2. Update the paths in `rive.gdextension` to match your project folder structure
@@ -79,7 +91,7 @@ python build.py --help
 - [x] Animated editor preview
 - [ ] Add reset button
 - [ ] `.riv` ResourceLoader (thumbnails)
-- [ ] Other platform support
+- [x] Linux x86_64 and arm64 support
 - [ ] Any missing features
 
 ## Contributing
@@ -88,7 +100,6 @@ Help would be MUCH appreciated testing and/or building for the following platfor
 * Windows
 * Android
 * iOS
-* Linux
 * Web
 
 Feel free to contribute bug fixes (see open issues), documentation, or features as well.

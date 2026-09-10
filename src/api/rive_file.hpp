@@ -29,7 +29,7 @@ class RiveFile : public Resource {
     friend class RiveInstance;
 
    private:
-    Ptr<rive::File> file;
+    rive::rcp<rive::File> file;
     String path = "";
 
     Instances<RiveArtboard> artboards = Instances<RiveArtboard>([this](int index) -> Ref<RiveArtboard> {
@@ -59,11 +59,15 @@ class RiveFile : public Resource {
         if (exists())
             for (int i = 0; i < file->artboardCount(); i++) {
                 auto ab = get_artboard(i);
-                if (ab.is_null() || !ab->exists()) throw RiveException("Failed to instantiate artboard.");
+                if (ab.is_null() || !ab->exists()) {
+                    RiveException("Failed to instantiate artboard.").report();
+                    return;
+                }
             }
     }
 
-    String _get_artboard_property_hint() const {
+    String _get_artboard_property_hint() {
+        _instantiate_artboards();
         PackedStringArray hints;
         hints.append("None:-1");
         if (file)
@@ -74,7 +78,7 @@ class RiveFile : public Resource {
     }
 
    public:
-    static Ref<RiveFile> MakeRef(Ptr<rive::File> file_value, String path_value) {
+    static Ref<RiveFile> MakeRef(rive::rcp<rive::File> file_value, String path_value) {
         if (!file_value) return nullptr;
         Ref<RiveFile> obj = memnew(RiveFile);
         obj->file = std::move(file_value);
@@ -84,7 +88,7 @@ class RiveFile : public Resource {
 
     static Ref<RiveFile> Load(String path, rive::Factory *factory) {
         try {
-            Ptr<rive::File> file = read_rive_file(path, factory);
+            auto file = read_rive_file(path, factory);
             if (file != nullptr) {
                 auto file_wrapper = RiveFile::MakeRef(std::move(file), path);
                 GDPRINT("Successfully imported <", path, ">!");
@@ -106,25 +110,28 @@ class RiveFile : public Resource {
         return path;
     }
 
-    TypedArray<RiveArtboard> get_artboards() const {
+    TypedArray<RiveArtboard> get_artboards() {
+        _instantiate_artboards();
         return artboards.get_list();
     }
 
-    PackedStringArray get_artboard_names() const {
+    PackedStringArray get_artboard_names() {
+        _instantiate_artboards();
         PackedStringArray names;
         artboards.for_each([&names](Ref<RiveArtboard> artboard, int _) { names.append(artboard->get_name()); });
         return names;
     }
 
     int get_artboard_count() const {
-        return artboards.get_size();
+        return file ? (int)file->artboardCount() : 0;
     }
 
     Ref<RiveArtboard> get_artboard(int index) {
         return artboards.get(index);
     }
 
-    Ref<RiveArtboard> find_artboard(String name) const {
+    Ref<RiveArtboard> find_artboard(String name) {
+        _instantiate_artboards();
         return artboards.find([name](Ref<RiveArtboard> artboard, int _) { return artboard->get_name() == name; });
     }
 

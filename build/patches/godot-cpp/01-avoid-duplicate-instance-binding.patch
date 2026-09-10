@@ -1,0 +1,11 @@
+diff --git a/src/classes/wrapped.cpp b/src/classes/wrapped.cpp
+index 7ee3bd4..91db497 100644
+--- a/src/classes/wrapped.cpp
++++ b/src/classes/wrapped.cpp
+@@ -48,2 +48,5 @@ void Wrapped::_postinitialize() {
+-	godot::internal::gdextension_interface_object_set_instance_binding(_owner, godot::internal::token, this, _get_bindings_callbacks());
++	// Godot 4.2+ installs the binding while constructing extension classes.
++	if (godot::internal::gdextension_interface_object_get_instance_binding(_owner, godot::internal::token, nullptr) == nullptr) {
++		godot::internal::gdextension_interface_object_set_instance_binding(_owner, godot::internal::token, this, _get_bindings_callbacks());
++	}
+ }

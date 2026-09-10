@@ -10,9 +10,10 @@
                 "${workspaceFolder}/thirdparty/rive-cpp",
                 "${workspaceFolder}/thirdparty/rive-cpp/include",
                 "${workspaceFolder}/godot-cpp/gdextension",
-                "${workspaceFolder}/thirdparty/rive-cpp/skia/dependencies/skia"
+                "${workspaceFolder}/build/deps/skia",
+                "${workspaceFolder}/thirdparty/rive-cpp/skia/renderer/include"
             ],
-            "defines": [],
+            "defines": ["WITH_RIVE_TEXT", "WITH_RIVE_LAYOUT", "WITH_RIVE_AUDIO", "MA_NO_RESOURCE_MANAGER", "YOGA_EXPORT="],
             "macFrameworkPath": [
                 "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"
             ],
@@ -27,10 +28,29 @@
                     "${workspaceFolder}/godot-cpp/include",
                     "${workspaceFolder}/godot-cpp/gen/include",
                     "${workspaceFolder}/thirdparty/rive-cpp/include",
-                    "${workspaceFolder}/thirdparty/rive-cpp/skia/dependencies/skia/include",
+                    "${workspaceFolder}/build/deps/skia/include",
                     "${workspaceFolder}/thirdparty/rive-cpp/skia/renderer/include"
                 ]
             }
+        },
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/src/**",
+                "${workspaceFolder}/godot-cpp/include",
+                "${workspaceFolder}/godot-cpp/gen/include",
+                "${workspaceFolder}/godot-cpp/gdextension",
+                "${workspaceFolder}/thirdparty/rive-cpp",
+                "${workspaceFolder}/thirdparty/rive-cpp/include",
+                "${workspaceFolder}/thirdparty/rive-cpp/skia/renderer/include",
+                "${workspaceFolder}/build/deps/skia"
+            ],
+            "defines": ["WITH_RIVE_TEXT", "WITH_RIVE_LAYOUT", "WITH_RIVE_AUDIO", "MA_NO_RESOURCE_MANAGER", "YOGA_EXPORT="],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-clang-x64"
         }
     ],
     "version": 4
