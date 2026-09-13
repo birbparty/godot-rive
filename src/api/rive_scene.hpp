@@ -43,7 +43,7 @@ class RiveScene : public Resource {
     });
 
     Instances<RiveListener> listeners = Instances<RiveListener>([this](int index) -> Ref<RiveListener> {
-        if (!exists() || !scene->stateMachine() || index < 0 || index >= scene->stateMachine()->inputCount())
+        if (!exists() || !scene->stateMachine() || index < 0 || index >= scene->stateMachine()->listenerCount())
             return nullptr;
         return RiveListener::MakeRef(scene->stateMachine()->listener(index), index);
     });
@@ -75,7 +75,21 @@ class RiveScene : public Resource {
         if (exists())
             for (int i = 0; i < scene->inputCount(); i++) {
                 auto input = get_input(i);
-                if (input.is_null() || !input->exists()) throw RiveException("Failed to instantiate input.");
+                if (input.is_null() || !input->exists()) {
+                    RiveException("Failed to instantiate input.").report();
+                    return;
+                }
+            }
+    }
+
+    void _instantiate_listeners() {
+        if (exists() && scene->stateMachine())
+            for (int i = 0; i < scene->stateMachine()->listenerCount(); i++) {
+                auto listener = get_listener(i);
+                if (listener.is_null() || !listener->exists()) {
+                    RiveException("Failed to instantiate listener.").report();
+                    return;
+                }
             }
     }
 
@@ -116,22 +130,25 @@ class RiveScene : public Resource {
     }
 
     int get_input_count() const {
-        return inputs.get_size();
+        return scene ? (int)scene->inputCount() : 0;
     }
 
     int get_listener_count() const {
-        return listeners.get_size();
+        return scene && scene->stateMachine() ? (int)scene->stateMachine()->listenerCount() : 0;
     }
 
-    TypedArray<RiveInput> get_inputs() const {
+    TypedArray<RiveInput> get_inputs() {
+        _instantiate_inputs();
         return inputs.get_list();
     }
 
-    TypedArray<RiveListener> get_listeners() const {
+    TypedArray<RiveListener> get_listeners() {
+        _instantiate_listeners();
         return listeners.get_list();
     }
 
-    PackedStringArray get_input_names() const {
+    PackedStringArray get_input_names() {
+        _instantiate_inputs();
         PackedStringArray names;
         inputs.for_each([&names](Ref<RiveInput> input, int _) { names.append(input->get_name()); });
         return names;
@@ -154,7 +171,8 @@ class RiveScene : public Resource {
         return inputs.get(index);
     }
 
-    Ref<RiveInput> find_input(String name) const {
+    Ref<RiveInput> find_input(String name) {
+        _instantiate_inputs();
         return inputs.find([name](Ref<RiveInput> input, int index) { return input->get_name() == name; });
     }
 
@@ -166,7 +184,8 @@ class RiveScene : public Resource {
         return listeners.get(index);
     }
 
-    Ref<RiveListener> find_listener(String name) const {
+    Ref<RiveListener> find_listener(String name) {
+        _instantiate_listeners();
         return listeners.find([name](Ref<RiveListener> listener, int index) { return listener->get_name() == name; });
     }
 

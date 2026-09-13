@@ -23,9 +23,9 @@
 #include <rive/file.hpp>
 
 // skia
-#include <skia/dependencies/skia/include/core/SkBitmap.h>
-#include <skia/dependencies/skia/include/core/SkCanvas.h>
-#include <skia/dependencies/skia/include/core/SkSurface.h>
+#include <include/core/SkBitmap.h>
+#include <include/core/SkCanvas.h>
+#include <include/core/SkSurface.h>
 
 #include <skia/renderer/include/skia_factory.hpp>
 #include <skia/renderer/include/skia_renderer.hpp>
@@ -152,6 +152,7 @@ class RiveViewerBase {
     /* API */
 
     float get_elapsed_time() const;
+    Ref<Image> get_image() const { return image; }
     Ref<RiveFile> get_file() const;
     Ref<RiveArtboard> get_artboard() const;
     Ref<RiveScene> get_scene() const;
@@ -197,6 +198,7 @@ class RiveViewerBase {
         PropertyInfo(Variant::VARIANT_MAX, "old_value")                                          \
     ));                                                                                          \
     BIND_GET(cls, elapsed_time);                                                                 \
+    BIND_GET(cls, image);                                                                        \
     BIND_GET(cls, file);                                                                         \
     BIND_GET(cls, artboard);                                                                     \
     BIND_GET(cls, scene);                                                                        \
@@ -236,6 +238,7 @@ class RiveViewerBase {
     RIVE_VIEWER_SETGET(bool, disable_hover)                                  \
     RIVE_VIEWER_SETGET(bool, paused)                                         \
     RIVE_VIEWER_GET(float, elapsed_time)                                     \
+    RIVE_VIEWER_GET(Ref<Image>, image)                                       \
     RIVE_VIEWER_GET(Ref<RiveFile>, file)                                     \
     RIVE_VIEWER_GET(Ref<RiveArtboard>, artboard)                             \
     RIVE_VIEWER_GET(Ref<RiveScene>, scene)                                   \

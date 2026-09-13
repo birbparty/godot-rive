@@ -17,9 +17,9 @@
 #include <rive/file.hpp>
 
 // Skia
-#include <skia/dependencies/skia/include/core/SkBitmap.h>
-#include <skia/dependencies/skia/include/core/SkCanvas.h>
-#include <skia/dependencies/skia/include/core/SkSurface.h>
+#include <include/core/SkBitmap.h>
+#include <include/core/SkCanvas.h>
+#include <include/core/SkSurface.h>
 
 #include <skia/renderer/include/skia_factory.hpp>
 #include <skia/renderer/include/skia_renderer.hpp>
@@ -111,7 +111,10 @@ struct RiveInstance {
                 ab->_instantiate_animations();
             }
             auto sm = scene();
-            if (exists(sm)) sm->_instantiate_inputs();
+            if (exists(sm)) {
+                sm->_instantiate_inputs();
+                sm->_instantiate_listeners();
+            }
         } catch (RiveException error) {
             error.report();
         }

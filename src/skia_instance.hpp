@@ -1,13 +1,15 @@
 #ifndef _RIVEEXTENSION_SKIA_INSTANCE_HPP_
 #define _RIVEEXTENSION_SKIA_INSTANCE_HPP_
 
+#include <memory>
+
 // godot-cpp
 #include <godot_cpp/variant/builtin_types.hpp>
 
 // skia
-#include <skia/dependencies/skia/include/core/SkBitmap.h>
-#include <skia/dependencies/skia/include/core/SkCanvas.h>
-#include <skia/dependencies/skia/include/core/SkSurface.h>
+#include <include/core/SkBitmap.h>
+#include <include/core/SkCanvas.h>
+#include <include/core/SkSurface.h>
 
 #include <skia/renderer/include/skia_factory.hpp>
 #include <skia/renderer/include/skia_renderer.hpp>
@@ -23,7 +25,7 @@ struct SkiaInstance {
     ViewerProps *props;
     sk_sp<SkSurface> surface;
     Ptr<SkiaRenderer> renderer;
-    Ptr<SkiaFactory> factory = rivestd::make_unique<SkiaFactory>();
+    Ptr<SkiaFactory> factory = std::make_unique<SkiaFactory>();
 
     void set_props(ViewerProps *props_value) {
         props = props_value;
@@ -66,7 +68,7 @@ struct SkiaInstance {
    private:
     void on_transform_changed() {
         surface = SkSurface::MakeRaster(image_info());
-        renderer = rivestd::make_unique<SkiaRenderer>(surface->getCanvas());
+        renderer = std::make_unique<SkiaRenderer>(surface->getCanvas());
     }
 };
 

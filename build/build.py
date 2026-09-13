@@ -1,246 +1,145 @@
+#!/usr/bin/env python3
+"""Build Skia, the Rive runtime, and the Godot extension."""
+
+from __future__ import annotations
+
 import argparse
+import os
+import platform as host_platform
+import shutil
 import subprocess
-from argparse import RawDescriptionHelpFormatter
-from os.path import exists
+import sys
+from pathlib import Path
 
-RESET = "\033[0m"
-BOLD = "\033[01m"
-DISABLE = "\033[02m"
-UNDERLINE = "\033[04m"
-REVERSE = "\033[07m"
-STRIKE = "\033[09m"
-INVISIBLE = "\033[08m"
-BLACK = "\033[30m"
-RED = "\033[31m"
-GREEN = "\033[32m"
-ORANGE = "\033[33m"
-BLUE = "\033[34m"
-PURPLE = "\033[35m"
-CYAN = "\033[36m"
-LIGHT_GREY = "\033[37m"
-DARK_GREY = "\033[90m"
-YELLOW = "\033[93m"
-PINK = "\033[95m"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+BUILD_DIR = REPO_ROOT / "build"
+RIVE_DIR = BUILD_DIR / "rive"
+RUNTIME_DIR = REPO_ROOT / "thirdparty" / "rive-cpp"
+GODOT_CPP_DIR = REPO_ROOT / "godot-cpp"
+DEPS_DIR = BUILD_DIR / "deps"
+PREMAKE_ARGS = "--with_rive_text --with_rive_layout --with_rive_audio=system --with-pic --no-lto"
+RIVE_TARGETS = ("rive", "rive_skia_renderer", "rive_harfbuzz", "rive_sheenbidi", "rive_yoga", "miniaudio")
 
 
-def Dim(text: str) -> str:
-    return f"{LIGHT_GREY}{text}{RESET}"
+def run(args: list[str], *, cwd: Path = REPO_ROOT, env: dict[str, str] | None = None) -> None:
+    print("+", " ".join(args), flush=True)
+    subprocess.run(args, cwd=cwd, env=env, check=True)
 
 
-def Cyan(text: str) -> str:
-    return f"{CYAN}{text}{RESET}"
+def detect_platform() -> str:
+    if sys.platform.startswith("linux"):
+        return "linux"
+    if sys.platform == "darwin":
+        return "macos"
+    raise SystemExit(f"unsupported host platform: {sys.platform}")
 
 
-def Bold(text: str) -> str:
-    return f"{BOLD}{text}{RESET}"
+def detect_arch() -> str:
+    value = host_platform.machine().lower()
+    if value in ("x86_64", "amd64"):
+        return "x86_64"
+    if value in ("arm64", "aarch64"):
+        return "arm64"
+    raise SystemExit(f"unsupported host architecture: {value}")
 
 
-def Red(text: str) -> str:
-    return f"{RED}{text}{RESET}"
-
-
-def Green(text: str) -> str:
-    return f"{GREEN}{text}{RESET}"
-
-
-def print_list(*items: tuple[str, str]):
-    for label, value in items:
-        print(Bold(f"{label}:"), Cyan(value))
-
-
-def handle_fail(code: int):
-    if code != 0:
-        print(RESET, Red(f"Exited with error: {code}\n"))
-    else:
-        print(RESET)
-
-
-def update_rive():
-    subprocess.call(["git", "submodule", "update", "thirdparty/rive-cpp"], cwd="../")
-
-
-def build_rive(platform: str, target: str):
-    print(Bold("\nRunning Rive's build script..."))
-    print_list(
-        ("Platform", platform if len(platform) else "<auto>"),
-        ("Target", target),
-    )
-    print(f"---{LIGHT_GREY}")
-    update_rive()
-    args = ["sh", "build.sh"]
-    if len(platform):
-        args.append("-p")
-        args.append(platform)
-    args.append(target)
-    handle_fail(subprocess.call(args, cwd="../thirdparty/rive-cpp"))
-
-
-def build_skia_dependencies() -> int:
-    if not exists("../thirdparty/rive-cpp/skia/dependencies/skia"):
-        return subprocess.call(
-            ["sh", "make_dependencies.sh"],
-            cwd="../thirdparty/rive-cpp/skia/dependencies",
+def apply_patches(checkout: Path, patch_dir: Path) -> None:
+    for patch in sorted(patch_dir.glob("*.patch")) if patch_dir.exists() else ():
+        check = subprocess.run(
+            ["git", "apply", "--check", str(patch)], cwd=checkout, capture_output=True
         )
-    else:
-        print("Skia is already built!")
-        return 0
+        if check.returncode == 0:
+            run(["git", "apply", str(patch)], cwd=checkout)
+            continue
+        reverse = subprocess.run(
+            ["git", "apply", "--reverse", "--check", str(patch)], cwd=checkout, capture_output=True
+        )
+        if reverse.returncode != 0:
+            raise SystemExit(f"patch cannot be applied cleanly to {checkout}: {patch}")
 
 
-def build_skia(platform: str, target: str):
-    print(Bold("\nRunning Rive's skia build script..."))
-    print_list(
-        ("Platform", platform if len(platform) else "<auto>"),
-        ("Target", target),
-    )
-    print(f"---{LIGHT_GREY}")
-    update_rive()
-    code = build_skia_dependencies()
-    if code == 0:
-        args = ["sh", "build.sh"]
-        if len(platform):
-            args.append("-p")
-            args.append(platform)
-        args.append(target)
-        code = subprocess.call(args, cwd="../thirdparty/rive-cpp/skia/renderer")
-    handle_fail(code)
+def build_skia(args: argparse.Namespace) -> None:
+    run([sys.executable, str(BUILD_DIR / "skia" / "build_skia.py"),
+         f"--platform={args.platform}", f"--arch={args.arch}", f"--target={args.target}"])
 
 
-def build_extension(
-    platform: str = "",
-    target: str = "",
-    arch: str = "",
-    unknown: list[str] = [],
-):
-    args: list[str] = ["scons"]
-    if platform == "ios_sim":
-        args.append(f"platform=ios")
-        args.append(f"ios_simulator=yes")
-    elif platform and len(platform):
-        args.append(f"platform={platform}")
-    if target and len(target):
-        args.append(f"target={target}")
-    if arch and len(arch):
-        args.append(f"arch={arch}")
-    args += unknown
-    print(Bold("\nBuilding Rive Extension..."))
-    print_list(
-        ("Platform", platform or "<auto>"),
-        ("Architecture", arch or "<auto>"),
-        ("Target", target or "template_debug"),
-        ("Other arguments", ", ".join(unknown)),
-    )
-    print(f"---{LIGHT_GREY}")
-    code: int = subprocess.call(args)
-    handle_fail(code)
+def build_rive(args: argparse.Namespace) -> str:
+    DEPS_DIR.mkdir(parents=True, exist_ok=True)
+    apply_patches(RUNTIME_DIR, BUILD_DIR / "patches" / "rive-cpp")
+    env = os.environ.copy()
+    env["DEPENDENCIES"] = str(DEPS_DIR)
+    env["RIVE_PREMAKE_ARGS"] = PREMAKE_ARGS
+    env.pop("SKIA_DIR", None)
+    if args.platform == "macos":
+        env["MACOS_SYSROOT"] = subprocess.check_output(
+            ["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True
+        ).strip()
+    rive_output = f"out/{'arm64_' if args.platform == 'macos' else ''}{args.target}"
+    command = [str(RUNTIME_DIR / "build" / "build_rive.sh"), args.target]
+    if args.platform == "macos":
+        command.append("arm64")
+    command.extend(("--", *RIVE_TARGETS))
+    run(command, cwd=RIVE_DIR, env=env)
+    (RIVE_DIR / rive_output / ".rive_premake_args").write_text(PREMAKE_ARGS + "\n")
+    return rive_output
 
 
-# rive platform : godot platform
-PLATFORM_MAP = {
-    "macosx": "macos",
-    "linux": "linux",
-    "windows": "windows",
-    "ios": "ios",
-    "ios_sim": "ios_sim",
-    "android": "android",
-}
-
-# rive target : godot target
-TARGET_MAP = {
-    "debug": "template_debug",
-    "release": "template_release",
-}
-
-ARCHITECTURES = [
-    "universal",
-    "x86_32",
-    "x86_64",
-    "arm32",
-    "arm64",
-    "rv64",
-    "ppc32",
-    "ppc64",
-    "wasm32",
-]
-
-EXAMPLES: list[tuple[str, str]] = [
-    (
-        "python build.py -j10 --platform=macos --target=debug",
-        "builds debug for MacOS universal using 10 cores",
-    ),
-    (
-        "python build.py --platform=macos --arch=arm64 --target=release",
-        "builds release for M1 MacOS",
-    ),
-]
-
-DESCRIPTION = [
-    "This script builds Rive Extension and its dependencies.",
-    "To see a full list of additional options provided by scons, run "
-    + Cyan("scons --help"),
-    Bold("\nExamples:"),
-]
-
-for example, text in EXAMPLES:
-    DESCRIPTION.append(Cyan(f"  {example}"))
-    DESCRIPTION.append(Dim(f"      {text}"))
+def build_extension(args: argparse.Namespace, rive_output: str) -> None:
+    apply_patches(GODOT_CPP_DIR, BUILD_DIR / "patches" / "godot-cpp")
+    command = ["scons", "-C", str(BUILD_DIR), f"platform={args.platform}",
+               f"target=template_{args.target}", f"arch={args.arch}",
+               f"rive_out={rive_output}", f"skia_out=out/{args.target}"]
+    command.append("use_llvm=yes" if args.platform == "linux" else "macos_deployment_target=11.0")
+    command.extend(args.scons_args)
+    run(command)
 
 
-parser = argparse.ArgumentParser(
-    description="\n".join(DESCRIPTION), formatter_class=RawDescriptionHelpFormatter
-)
+def clean(args: argparse.Namespace) -> None:
+    outputs = [
+        DEPS_DIR / "skia" / "out" / args.target,
+        RIVE_DIR / "out" / (f"arm64_{args.target}" if args.platform == "macos" else args.target),
+    ]
+    for output in outputs:
+        if output.exists():
+            print(f"Removing {output}")
+            shutil.rmtree(output)
+    command = ["scons", "-C", str(BUILD_DIR), "--clean", f"platform={args.platform}",
+               f"target=template_{args.target}", f"arch={args.arch}"]
+    if args.platform == "linux":
+        command.append("use_llvm=yes")
+    command.extend(args.scons_args)
+    run(command)
+    run(["git", "checkout", "--", "."], cwd=RUNTIME_DIR)
+    run(["git", "clean", "-fd", "-e", "build/dependencies"], cwd=RUNTIME_DIR)
+    run(["git", "checkout", "--", "."], cwd=GODOT_CPP_DIR)
 
-parser.add_argument(
-    "-p",
-    "--platform",
-    choices=PLATFORM_MAP.keys(),
-    required=False,
-    help=Dim(
-        "Build for a specific platform. If not provided, will be inferred from the current OS."
-    ),
-)
-parser.add_argument(
-    "-a",
-    "--arch",
-    choices=ARCHITECTURES,
-    required=False,
-    default="",
-    help=Dim(
-        "Build for a specific CPU architecture. If not provided, will be inferred from the current OS."
-    ),
-)
-parser.add_argument(
-    "-c",
-    "--clean",
-    action="store_true",
-    help=Dim("Cleans the build."),
-)
-parser.add_argument(
-    "-t",
-    "--target",
-    choices=TARGET_MAP.keys(),
-    required=False,
-    default="debug",
-    help=Dim("Build for debug or release. Defaults to debug."),
-)
 
-namespace, unknown = parser.parse_known_args()
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("-p", "--platform", choices=("linux", "macos"), default=detect_platform())
+    parser.add_argument("-a", "--arch", choices=("x86_64", "arm64"), default=detect_arch())
+    parser.add_argument("-t", "--target", choices=("debug", "release"), default="debug")
+    parser.add_argument("-c", "--clean", action="store_true")
+    parser.add_argument("--skip-skia", action="store_true")
+    parser.add_argument("--skip-rive", action="store_true")
+    args, args.scons_args = parser.parse_known_args()
+    if args.platform == "linux" and args.arch != detect_arch():
+        parser.error("Linux cross-compilation is not supported; choose the host architecture")
+    if args.platform == "macos" and args.arch != "arm64":
+        parser.error("macOS builds are arm64-only; universal builds are deferred")
+    if args.clean:
+        clean(args)
+        return
+    if not args.skip_skia:
+        build_skia(args)
+    rive_output = f"out/{'arm64_' if args.platform == 'macos' else ''}{args.target}"
+    if not args.skip_rive:
+        rive_output = build_rive(args)
+    build_extension(args, rive_output)
 
-platform: str = namespace.platform if namespace.platform else ""
-target: str = (
-    "clean" if namespace.clean else namespace.target if namespace.target else "debug"
-)
 
-godot_platform: str = PLATFORM_MAP[platform] if platform in PLATFORM_MAP else ""
-godot_target: str = TARGET_MAP[target] if target in TARGET_MAP else "template_debug"
-
-build_rive(platform, target)
-build_skia(platform, target)
-if target != "clean":
-    build_extension(
-        platform=godot_platform,
-        target=godot_target,
-        arch=namespace.arch,
-        unknown=unknown,
-    )
-
-print(Bold("Build successful!\n"))
+if __name__ == "__main__":
+    try:
+        main()
+    except subprocess.CalledProcessError as error:
+        raise SystemExit(error.returncode) from error

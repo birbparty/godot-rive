@@ -6,3 +6,9 @@
 *.os
 *.o
 .sconsign.dblite
+__pycache__/
+
+# Dependency build outputs (see build/build.py)
+build/deps/
+build/rive/out/
+demo/bin/*.so

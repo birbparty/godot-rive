@@ -1,79 +1,57 @@
 #!/usr/bin/env python
 from os.path import join
 
-
-def GetRiveBin(path: str) -> str:
-    platform_map = {
-        "macos": "macosx",
-        "windows": "windows",
-    }
-    target_map = {
-        "template_debug": "debug",
-        "template_release": "release",
-    }
-    return File(
-        join(
-            "../thirdparty/rive-cpp",
-            path.format(
-                platform=platform_map.get(env["platform"], env["platform"]),
-                target=target_map.get(env["target"], env["target"]),
-                suffix=env.get("LIBSUFFIX", ".a"),
-            ),
-        )
-    )
-
-
+rive_out = ARGUMENTS.pop("rive_out", "out/debug")
+skia_out = ARGUMENTS.pop("skia_out", "out/debug")
 SConscript("SConscript.common")
 env = SConscript("../godot-cpp/SConstruct")
-
 env["STATIC_AND_SHARED_OBJECTS_ARE_THE_SAME"] = True
+rive_lib_dir = join("../build/rive", rive_out)
+skia_dir = "../build/deps/skia"
+skia_lib_dir = join(skia_dir, skia_out)
 
-sources = []
-
-# Add skia library
-SKIA_SRC_DIR = "../thirdparty/rive-cpp/skia/dependencies/skia"
-env.RequireFile(Dir(SKIA_SRC_DIR))
-env.Prepend(
-    LIBS=["skia"],
-    LIBPATH=[join(SKIA_SRC_DIR, "out/static")],
-    CPPPATH=[
-        SKIA_SRC_DIR,
-        join(SKIA_SRC_DIR, "include"),
-        join(SKIA_SRC_DIR, "src"),
-    ],
-)
-
-# Add rive library
-
-rive_bins = [
-    GetRiveBin("build/{platform}/bin/{target}/librive{suffix}"),
-    GetRiveBin(
-        "skia/renderer/build/{platform}/bin/{target}/librive_skia_renderer{suffix}"
-    ),
-    GetRiveBin("dependencies/{platform}/cache/bin/{target}/librive_harfbuzz{suffix}"),
-    GetRiveBin("dependencies/{platform}/cache/bin/{target}/librive_sheenbidi{suffix}"),
+library_names = [
+    "rive_skia_renderer", "rive", "skia", "rive_harfbuzz",
+    "rive_sheenbidi", "rive_yoga", "miniaudio",
 ]
+library_files = [
+    File(join(rive_lib_dir, "librive_skia_renderer.a")),
+    File(join(rive_lib_dir, "librive.a")),
+    File(join(skia_lib_dir, "libskia.a")),
+    File(join(rive_lib_dir, "librive_harfbuzz.a")),
+    File(join(rive_lib_dir, "librive_sheenbidi.a")),
+    File(join(rive_lib_dir, "librive_yoga.a")),
+    File(join(rive_lib_dir, "libminiaudio.a")),
+]
+if not GetOption("clean"):
+    for library in library_files:
+        env.RequireFile(library)
 
-for lib in rive_bins:
-    env.RequireFile(lib)
-
-RIVE_SRC_DIR = "../thirdparty/rive-cpp/"
+# Keep these layout-affecting defines in sync with PREMAKE_ARGS in build/build.py.
+env.Append(CPPDEFINES=[
+    "WITH_RIVE_TEXT", "WITH_RIVE_LAYOUT", "WITH_RIVE_AUDIO",
+    "MA_NO_RESOURCE_MANAGER", ("YOGA_EXPORT", ""),
+])
 env.Prepend(
-    LIBS=rive_bins,
+    LIBS=library_names,
+    LIBPATH=[rive_lib_dir, skia_lib_dir],
     CPPPATH=[
-        RIVE_SRC_DIR,
-        join(RIVE_SRC_DIR, "include"),
-        join(RIVE_SRC_DIR, "src"),
-        join(RIVE_SRC_DIR, "skia/renderer"),
-        join(RIVE_SRC_DIR, "skia/renderer/include"),
-        join(RIVE_SRC_DIR, "skia/renderer/src"),
+        "../src",
+        "../thirdparty/rive-cpp",
+        "../thirdparty/rive-cpp/include",
+        "../thirdparty/rive-cpp/skia/renderer/include",
+        skia_dir,
     ],
 )
 
-# Add source files
-env.Append(CPPPATH=["../src/"])
-sources += env.GlobRecursive("../src", "*.cpp")
+if env["platform"] == "linux":
+    env["_LIBFLAGS"] = "-Wl,--start-group " + env["_LIBFLAGS"] + " -Wl,--end-group"
+    env.Append(LIBS=["pthread", "dl", "m"])
+elif env["platform"] == "macos":
+    for framework in ("CoreText", "CoreGraphics", "CoreFoundation", "CoreAudio", "AudioToolbox"):
+        env.Append(LINKFLAGS=["-framework", framework])
 
+sources = env.GlobRecursive("../src", "*.cpp")
 if env["platform"] == "macos":
     library = env.SharedLibrary(
         "../demo/bin/librive.{}.{}.framework/librive.{}.{}".format(
@@ -82,9 +60,6 @@ if env["platform"] == "macos":
         source=sources,
     )
 else:
-    library = env.SharedLibrary(
-        "../demo/bin/librive{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
-        source=sources,
-    )
+    library = env.SharedLibrary("../demo/bin/librive{}{}".format(env["suffix"], env["SHLIBSUFFIX"]), source=sources)
 
 Default(library)

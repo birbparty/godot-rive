@@ -12,6 +12,7 @@
 // rive-cpp
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/animation/state_machine_listener.hpp>
+#include <rive/listener_type.hpp>
 
 using namespace godot;
 
@@ -52,7 +53,9 @@ class RiveListener : public Resource {
             "MOUSE_MOTION",
             (int)rive::ListenerType::move
         );
+        ClassDB::bind_integer_constant(get_class_static(), "RiveListenerType", "CLICK", (int)rive::ListenerType::click);
         ClassDB::bind_method(D_METHOD("get_type"), &RiveListener::get_type);
+        ClassDB::bind_method(D_METHOD("has_type", "type"), &RiveListener::has_type);
     }
 
    public:
@@ -79,7 +82,18 @@ class RiveListener : public Resource {
     }
 
     int get_type() const {
-        return listener ? (int)listener->listenerType() : (int)rive::ListenerType::move;
+        static constexpr rive::ListenerType query_order[] = {
+            rive::ListenerType::down, rive::ListenerType::up, rive::ListenerType::click,
+            rive::ListenerType::enter, rive::ListenerType::exit, rive::ListenerType::move,
+        };
+        if (listener)
+            for (auto type : query_order)
+                if (listener->hasListener(type)) return (int)type;
+        return -1;
+    }
+
+    bool has_type(int type) const {
+        return listener && listener->hasListener((rive::ListenerType)type);
     }
 
     String get_type_string() const {
@@ -92,9 +106,12 @@ class RiveListener : public Resource {
                 return "RiveListenerType::MOUSE_EXIT";
             case rive::ListenerType::up:
                 return "RiveListenerType::RELEASED";
+            case rive::ListenerType::click:
+                return "RiveListenerType::CLICK";
             case rive::ListenerType::move:
-            default:
                 return "RiveListenerType::MOUSE_MOTION";
+            default:
+                return "RiveListenerType::NONE";
         }
     }
 
