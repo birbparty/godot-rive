@@ -78,7 +78,13 @@ def gn_args(target: str, platform: str, arch: str) -> list[str]:
         "-DSK_DISABLE_AAA", "-DSK_DISABLE_EFFECT_DESERIALIZATION",
     ]
     if platform == "macos":
-        cflags.append("-mmacosx-version-min=11.0")
+        # This Skia pin vendors zlib/libpng sources that treat the modern
+        # macOS TARGET_OS_MAC macro as classic Mac OS. Keep the real POSIX
+        # fdopen declaration and establish math.h before libpng looks for the
+        # removed classic-Mac fp.h header.
+        cflags.extend((
+            "-mmacosx-version-min=11.0", "-Dfdopen=fdopen", "-include", "math.h",
+        ))
     quoted_flags = ",".join(f'"{flag}"' for flag in cflags)
     return [
         f"is_official_build={'true' if target == 'release' else 'false'}",

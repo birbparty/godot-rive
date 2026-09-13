@@ -62,14 +62,20 @@ python3 build/build.py --help
 After building, import the extension and run the headless smoke test:
 
 ```bash
-godot --headless --path demo --import
-godot --headless --fixed-fps 60 --path demo --script smoke_test.gd 2>&1 | tee /tmp/rive-smoke.log
-test ${PIPESTATUS[0]} -eq 0 && ! grep -E "ERROR:|SCRIPT ERROR:|\[Rive\] .*(Failed|Unable)" /tmp/rive-smoke.log
+GODOT_BIN="${GODOT_BIN:-godot}"
+set -o pipefail
+"$GODOT_BIN" --headless --path demo --import 2>&1 | tee /tmp/rive-import.log
+test $? -eq 0
+"$GODOT_BIN" --headless --fixed-fps 60 --path demo --script smoke_test.gd 2>&1 | tee /tmp/rive-smoke.log
+test $? -eq 0
+! grep -E "ERROR:|SCRIPT ERROR:|\[Rive\] .*(Failed|Unable)" /tmp/rive-import.log /tmp/rive-smoke.log
 ```
+
+On macOS, set `GODOT_BIN=/Applications/Godot.app/Contents/MacOS/Godot` when the application-bundle executable is not on `PATH`.
 
 ## Installation
 
-Linux binaries must currently be built locally. The committed macOS frameworks are legacy universal binaries built against the previous runtime pin; rebuild them as arm64 before shipping this update.
+Linux binaries must currently be built locally. The committed macOS debug and release frameworks are arm64 binaries rebuilt against `runtime-v0.1.384`.
 
 1. Copy `demo/bin/`, `demo/icons/`, and `demo/rive.gdextension` to your project folder
 2. Update the paths in `rive.gdextension` to match your project folder structure
@@ -107,3 +113,5 @@ Feel free to contribute bug fixes (see open issues), documentation, or features 
 ## Screenshots
 
 ![In-editor screenshot](screenshots/screenshot_1.png)
+
+![macOS arm64 validation](screenshots/macos-validation.png)
